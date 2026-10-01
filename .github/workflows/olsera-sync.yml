@@ -1,0 +1,25 @@
+name: Olsera Background Auto-Sync
+
+on:
+  schedule:
+    # Berjalan otomatis setiap 10 menit 24/7 di cloud
+    - cron: '*/10 * * * *'
+  workflow_dispatch: # Memungkinkan tombol 'Run workflow' manual di GitHub
+
+jobs:
+  sync-transactions:
+    name: Sync Olsera to Vercel Database
+    runs-on: ubuntu-latest
+    steps:
+      - name: Trigger Olsera Sync Endpoint
+        run: |
+          echo "Starting automatic sync of Olsera transactions..."
+          RESPONSE=$(curl -s -w "\nHTTP_STATUS:%{http_code}" -X GET "https://dashboard-api-sandy.vercel.app/api/olsera/sync")
+          echo "$RESPONSE"
+          
+          HTTP_STATUS=$(echo "$RESPONSE" | grep "HTTP_STATUS" | cut -d':' -f2)
+          if [ "$HTTP_STATUS" -eq 200 ]; then
+            echo "Successfully synced Olsera transactions."
+          else
+            echo "Warning: Sync returned status $HTTP_STATUS"
+          fi

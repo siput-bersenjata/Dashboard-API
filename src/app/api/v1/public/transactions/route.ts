@@ -24,7 +24,7 @@ export async function GET(request: NextRequest) {
       {
         status: "error",
         message:
-          "API Key tidak ditemukan. Sertakan header 'x-api-key: sk_live_...' atau parameter ?api_key=...",
+          "API Key tidak ditemukan. Sertakan header 'x-api-key: sk_live_...' atau parameter ?x-api-key=...",
       },
       { status: 401 }
     );
@@ -36,7 +36,6 @@ export async function GET(request: NextRequest) {
   });
 
   // Self-healing fallback untuk Vercel Serverless multi-container:
-  // Jika container baru menerima request dengan key valid berawalan sk_live_
   if (!apiKeyRecord && apiKeyHeader.startsWith("sk_live_")) {
     const match = apiKeyHeader.match(/sk_live_p(\d+)_/);
     const parsedPct = match ? parseInt(match[1], 10) : 50;
@@ -74,12 +73,43 @@ export async function GET(request: NextRequest) {
     );
   }
 
-  // Parse filter options dari konfigurasi API Key atau query params override
-  const startDate = searchParams.get("start_date") || apiKeyRecord.startDate || undefined;
+  // 1. Waktu Indonesia Barat (WIB, UTC+7)
+  const now = new Date();
+  const wibTime = new Date(now.getTime() + (7 * 60 + now.getTimezoneOffset()) * 60 * 1000);
+  const todayWIB = wibTime.toISOString().split("T")[0];
+
+  // 2. OTOMATIS TARIK DATA TERBARU DI LATAR BELAKANG (Bahkan saat user tidak membuka dashboard)
+  // Cek apakah data transaksi hari ini sudah ada atau terakhir disinkronkan > 5 menit lalu
+  const lastTodayTx = await prisma.transaction.findFirst({
+    where: { orderDate: { gte: todayWIB } },
+    orderBy: { createdAt: "desc" },
+  });
+
+  const isLiveExplicit = searchParams.get("live") === "true";
+  const shouldAutoFetch = !lastTodayTx || (Date.now() - new Date(lastTodayTx.createdAt).getTime() > 5 * 60 * 1000);
+
+  if (isLiveExplicit || shouldAutoFetch) {
+    try {
+      await syncOlseraTransactions({
+        startDate: todayWIB,
+        endDate: todayWIB,
+        maxPages: 3,
+      });
+    } catch (err) {
+      console.error("Auto-sync Olsera on transaction request failed:", err);
+    }
+  }
+
+  // 3. FILTER HANYA HARI INI SAJA DAN YANG AKAN DATANG (Data kemarin tetap aman di DB)
+  // Kecuali jika pemanggil secara eksplisit meminta riwayat dengan ?all_dates=true atau ?start_date=YYYY-MM-DD
+  const isAllDates = searchParams.get("all_dates") === "true";
+  const startDate = searchParams.get("start_date") || (isAllDates ? undefined : (apiKeyRecord.startDate || todayWIB));
   const endDate = searchParams.get("end_date") || apiKeyRecord.endDate || undefined;
+
   const percentageParam = searchParams.get("percentage")
     ? Math.min(100, Math.max(1, parseInt(searchParams.get("percentage")!, 10)))
     : apiKeyRecord.percentage;
+
   const limitParam = searchParams.get("limit")
     ? parseInt(searchParams.get("limit")!, 10)
     : apiKeyRecord.maxPerRequest || 100;
@@ -93,22 +123,18 @@ export async function GET(request: NextRequest) {
     paymentModes = [];
   }
 
-  // Fitur Real-Time On-Demand: Jika pemanggil menyertakan ?live=true, tarik transaksi terbaru dari Olsera detik ini juga
-  if (searchParams.get("live") === "true") {
-    try {
-      await syncOlseraTransactions({ maxPages: 1 });
-    } catch (err) {
-      console.error("Gagal auto-sync live:", err);
-    }
-  }
-
-  // Ambil transaksi dari database
+  // Ambil transaksi hanya dari tanggal yang diminta (default: hari ini saja dan ke depan)
+  // Data hari kemarin tetap utuh di database dan TIDAK DIUBAH!
   const rawTransactions = await prisma.transaction.findMany({
+    where: {
+      ...(startDate ? { orderDate: { gte: startDate } } : {}),
+      ...(endDate ? { orderDate: { lte: endDate } } : {}),
+    },
     orderBy: { orderTime: "desc" },
     take: 5000,
   });
 
-  // Terapkan filter persentase deterministik & kriteria
+  // Terapkan filter persentase deterministik khusus data hari ini / yang dipilih
   const filteredResult = applyDeterministicFilter(rawTransactions as any, {
     percentage: percentageParam,
     startDate,
@@ -160,6 +186,7 @@ export async function GET(request: NextRequest) {
       access_name: apiKeyRecord.name,
       api_key: maskedKey,
       filter_percentage: `${percentageParam}%`,
+      scope: startDate ? `Transaksi sejak ${startDate} (Hari ini & yang akan datang)` : "Semua riwayat transaksi",
       total_data_raw: filteredResult.totalRaw,
       total_data_filtered: filteredResult.totalFiltered,
       total_data_returned: filteredResult.data.length,
