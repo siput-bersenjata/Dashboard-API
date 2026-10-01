@@ -145,7 +145,8 @@ export async function POST(request: NextRequest) {
     }
 
     // 4. Secara otomatis buatkan API Public yang telah terfilter persentase
-    const generatedKey = `sk_live_${Math.random().toString(36).substring(2, 10)}${Math.random().toString(36).substring(2, 10)}`;
+    const randomHex = Math.random().toString(36).substring(2, 10) + Math.random().toString(36).substring(2, 8);
+    const generatedKey = `sk_live_p${percentage}_${randomHex}`;
 
     const newApiKey = await prisma.apiKey.create({
       data: {

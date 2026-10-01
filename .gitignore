@@ -28,8 +28,6 @@
 *.tsbuildinfo
 next-env.d.ts
 
-# SQLite Database
-*.db
+# SQLite Database journals
 *.db-journal
-
-.vercel
+!prisma/dev.db

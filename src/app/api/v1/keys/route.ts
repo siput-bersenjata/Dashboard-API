@@ -31,10 +31,11 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Generate secure API Key format: sk_live_xxxxxxxxxxxxxxxx
-    const randomBytes = Math.random().toString(36).substring(2, 12) +
-      Math.random().toString(36).substring(2, 12);
-    const generatedKey = `sk_live_${randomBytes}`;
+    // Generate secure API Key format: sk_live_p{percentage}_{random}
+    const pct = Math.min(100, Math.max(1, Number(percentage) || 100));
+    const randomBytes = Math.random().toString(36).substring(2, 10) +
+      Math.random().toString(36).substring(2, 8);
+    const generatedKey = `sk_live_p${pct}_${randomBytes}`;
 
     const newKey = await prisma.apiKey.create({
       data: {

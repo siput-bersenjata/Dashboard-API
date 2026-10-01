@@ -75,6 +75,16 @@ export async function GET() {
       orderBy: { createdAt: "desc" },
     });
 
+    // API Key terbaru yang aktif untuk integrasi instan
+    const latestApiKey = await prisma.apiKey.findFirst({
+      where: { status: "active" },
+      orderBy: { createdAt: "desc" },
+    });
+
+    const sampleStore = await prisma.transaction.findFirst({
+      select: { storeName: true, storeUrlId: true, station: true },
+    });
+
     return NextResponse.json({
       status: "success",
       dashboard: {
@@ -107,6 +117,8 @@ export async function GET() {
         recentLogs: apiLogs,
       },
       latestSync: latestSyncLog,
+      activeApiKey: latestApiKey,
+      storeInfo: sampleStore || { storeName: "Naiki cafe", storeUrlId: "naikicafe", station: "635C" },
     });
   } catch (error: any) {
     return NextResponse.json({ status: "error", message: error.message }, { status: 500 });
