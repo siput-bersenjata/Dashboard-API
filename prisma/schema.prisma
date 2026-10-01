@@ -1,0 +1,86 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model Transaction {
+  id              String   @id @default(cuid())
+  orderNo         String   @unique
+  orderTime       DateTime
+  orderDate       String
+  paymentModeId   Int?
+  paymentModeName String
+  subtotal        Float
+  tax             Float
+  discount        Float    @default(0)
+  serviceCharge   Float    @default(0)
+  rounding        Float    @default(0)
+  paidAmount      Float
+  voided          Int      @default(0)
+  station         String   @default("635C")
+  storeUrlId      String   @default("naikicafe")
+  storeName       String   @default("Naiki cafe")
+  rawJson         String?
+  createdAt       DateTime @default(now())
+
+  @@index([orderDate])
+  @@index([paymentModeName])
+  @@index([station])
+}
+
+model ApiKey {
+  id            String    @id @default(cuid())
+  name          String
+  key           String    @unique
+  description   String?
+  outlet        String?   @default("Semua Kasir")
+  percentage    Int       @default(100)
+  startDate     String?
+  endDate       String?
+  paymentModes  String?   @default("[]")
+  maxPerRequest Int       @default(100)
+  status        String    @default("active")
+  totalRequests Int       @default(0)
+  lastUsedAt    DateTime?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+}
+
+model ApiLog {
+  id           String   @id @default(cuid())
+  apiKeyId     String?
+  apiKeyName   String?
+  endpoint     String
+  statusCode   Int
+  recordsCount Int      @default(0)
+  ipAddress    String?
+  userAgent    String?
+  durationMs   Int?     @default(0)
+  createdAt    DateTime @default(now())
+
+  @@index([createdAt])
+}
+
+model SyncLog {
+  id              String   @id @default(cuid())
+  source          String   @default("olsera")
+  status          String   // "SUCCESS", "FAILED"
+  recordsIngested Int      @default(0)
+  message         String?
+  createdAt       DateTime @default(now())
+
+  @@index([createdAt])
+}
+
+model Setting {
+  key       String   @id
+  value     String
+  updatedAt DateTime @updatedAt
+}
