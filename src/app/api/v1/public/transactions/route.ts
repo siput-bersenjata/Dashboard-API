@@ -8,9 +8,15 @@ export async function GET(request: NextRequest) {
   const startTime = Date.now();
   const searchParams = request.nextUrl.searchParams;
 
-  // Cek API Key dari header atau query param
-  const apiKeyHeader =
-    request.headers.get("x-api-key") || searchParams.get("api_key");
+  // Cek API Key dari header atau query param (mendukung x-api-key & api_key di headers maupun query params)
+  const rawKey =
+    request.headers.get("x-api-key") ||
+    request.headers.get("api-key") ||
+    searchParams.get("api_key") ||
+    searchParams.get("x-api-key") ||
+    searchParams.get("key");
+
+  const apiKeyHeader = rawKey ? rawKey.trim() : null;
 
   if (!apiKeyHeader) {
     return NextResponse.json(
