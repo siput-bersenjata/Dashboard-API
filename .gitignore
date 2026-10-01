@@ -31,3 +31,5 @@ next-env.d.ts
 # SQLite Database
 *.db
 *.db-journal
+
+.vercel
