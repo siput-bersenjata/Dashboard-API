@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { applyDeterministicFilter } from "@/lib/filter-engine";
+import { syncOlseraTransactions } from "@/lib/olsera";
 
 export const dynamic = "force-dynamic";
 
@@ -90,6 +91,15 @@ export async function GET(request: NextRequest) {
     }
   } catch (e) {
     paymentModes = [];
+  }
+
+  // Fitur Real-Time On-Demand: Jika pemanggil menyertakan ?live=true, tarik transaksi terbaru dari Olsera detik ini juga
+  if (searchParams.get("live") === "true") {
+    try {
+      await syncOlseraTransactions({ maxPages: 1 });
+    } catch (err) {
+      console.error("Gagal auto-sync live:", err);
+    }
   }
 
   // Ambil transaksi dari database
